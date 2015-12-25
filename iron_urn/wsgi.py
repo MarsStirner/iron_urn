@@ -1,5 +1,7 @@
 import flask
+import requests
 
+from iron_urn.lib.access import get_url
 from iron_urn.systemwide import app
 
 
@@ -8,13 +10,27 @@ def hello_world():
     return 'Hello World!'
 
 
-@app.route('/urn:<nid_nss>')
-def render_urn(nid_nss):
-    if ':' not in nid_nss:
-        return flask.abort(404)
-    nid, nss = nid_nss.split(':', 1)
+@app.route('/urn:X-Medicine:<nss>/url')
+def render_urn(nss):
+    return get_url(nss)
 
-    return 'nid: %s\nnss: %s' % (nid, nss), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+@app.route('/urn:X-Medicine:<nss>/proxy')
+def proxy_urn(nss):
+    url = get_url(nss)
+    try:
+        print "Proxying to", url
+        response = requests.get(url, timeout=10)
+    except requests.Timeout:
+        return flask.abort(504)
+    except requests.ConnectionError:
+        return flask.abort(502)
+    except Exception, e:
+        return flask.abort(500, repr(e))
+    else:
+        headers = response.headers.copy()
+        headers.pop('content-encoding', None)
+        return response.content, response.status_code, headers.iteritems()
 
 
 if __name__ == '__main__':
